@@ -1,0 +1,13 @@
+{
+  "name": "yard-simulator",
+  "version": "0.1.0",
+  "private": true,
+  "description": "3D warehouse and container yard slotting simulator scaffold.",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  }
+}

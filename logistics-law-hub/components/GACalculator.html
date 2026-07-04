@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Công cụ tính Tổn thất chung (General Average)</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 600px; margin: 30px auto; padding: 0 16px; }
+  h2 { font-size: 1.2rem; }
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+  th, td { border: 1px solid #ddd; padding: 6px; text-align: left; font-size: 0.85rem; }
+  input { width: 100%; box-sizing: border-box; padding: 4px; }
+  button { margin: 8px 4px 0 0; padding: 8px 14px; border-radius: 6px; border: none; background: #1a1a1a; color: #fff; cursor: pointer; }
+  #result { margin-top: 16px; padding: 12px; background: #f5f5f5; border-radius: 8px; font-size: 0.85rem; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h2>⚓ Tính phân bổ Tổn thất chung (General Average)</h2>
+
+<label>Tổng tổn thất chung (GA Loss)</label>
+<input id="gaLoss" type="number" value="50000">
+
+<table id="partiesTable">
+  <thead><tr><th>Bên tham gia</th><th>Giá trị đóng góp (CV)</th><th></th></tr></thead>
+  <tbody>
+    <tr><td><input value="Ship"></td><td><input type="number" value="820000"></td><td><button onclick="removeRow(this)">x</button></td></tr>
+    <tr><td><input value="Cargo A"></td><td><input type="number" value="150000"></td><td><button onclick="removeRow(this)">x</button></td></tr>
+    <tr><td><input value="Cargo B"></td><td><input type="number" value="130000"></td><td><button onclick="removeRow(this)">x</button></td></tr>
+  </tbody>
+</table>
+
+<button onclick="addRow()">+ Thêm bên</button>
+<button onclick="calculate()">Tính phân bổ</button>
+
+<div id="result"></div>
+
+<script>
+function addRow() {
+  const tbody = document.querySelector('#partiesTable tbody');
+  const row = document.createElement('tr');
+  row.innerHTML = '<td><input value="Bên mới"></td><td><input type="number" value="0"></td><td><button onclick="removeRow(this)">x</button></td>';
+  tbody.appendChild(row);
+}
+function removeRow(btn) { btn.closest('tr').remove(); }
+
+function calculate() {
+  const gaLoss = parseFloat(document.getElementById('gaLoss').value);
+  const rows = document.querySelectorAll('#partiesTable tbody tr');
+  const parties = Array.from(rows).map(row => {
+    const inputs = row.querySelectorAll('input');
+    return { party: inputs[0].value, value: parseFloat(inputs[1].value) || 0 };
+  });
+
+  const totalCV = parties.reduce((s, p) => s + p.value, 0);
+  const rate = gaLoss / totalCV;
+
+  const lines = parties.map(p =>
+    `${p.party}: CV=${p.value.toLocaleString()} → đóng góp ${(p.value * rate).toLocaleString(undefined, {maximumFractionDigits: 2})}`
+  );
+
+  document.getElementById('result').textContent =
+    `Tổng CV: ${totalCV.toLocaleString()}\nTỷ lệ đóng góp: ${(rate*100).toFixed(4)}%\n\n` + lines.join('\n');
+}
+
+calculate();
+</script>
+</body>
+</html>

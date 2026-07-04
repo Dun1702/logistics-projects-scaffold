@@ -1,0 +1,18 @@
+{
+  "name": "vn-customs-toolkit",
+  "version": "0.1.0",
+  "description": "Công cụ tra cứu HS code và tính thuế nhập khẩu Việt Nam (MFN, VJEPA, AKFTA, ACFTA, EVFTA)",
+  "main": "api/server.js",
+  "scripts": {
+    "start": "node api/server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "cors": "^2.8.5"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>VN Customs & Tariff Calculator</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 40px auto; padding: 0 20px; color: #1a1a1a; }
+  h1 { font-size: 1.4rem; }
+  label { display: block; margin-top: 12px; font-size: 0.9rem; font-weight: 600; }
+  input, select { width: 100%; padding: 8px; margin-top: 4px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 6px; }
+  button { margin-top: 20px; padding: 10px 20px; background: #1a1a1a; color: white; border: none; border-radius: 6px; cursor: pointer; }
+  #result { margin-top: 24px; padding: 16px; background: #f5f5f5; border-radius: 8px; white-space: pre-wrap; font-size: 0.9rem; }
+  .fta-row { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+</style>
+</head>
+<body>
+  <h1>🇻🇳 Công cụ tính thuế nhập khẩu</h1>
+
+  <label>Mã HS</label>
+  <select id="hsCode"></select>
+
+  <label>Trị giá FOB (USD)</label>
+  <input id="fob" type="number" value="10000">
+
+  <label>Cước vận chuyển - Freight (USD)</label>
+  <input id="freight" type="number" value="500">
+
+  <label>Số lượng</label>
+  <input id="quantity" type="number" value="1">
+
+  <label>FTA đủ điều kiện áp dụng (giữ Ctrl để chọn nhiều)</label>
+  <select id="ftas" multiple>
+    <option value="vjepa">VJEPA (Việt Nam - Nhật Bản)</option>
+    <option value="akfta">AKFTA (ASEAN - Hàn Quốc)</option>
+    <option value="acfta">ACFTA (ASEAN - Trung Quốc)</option>
+    <option value="evfta">EVFTA (Việt Nam - EU)</option>
+  </select>
+
+  <button onclick="calculate()">Tính thuế</button>
+
+  <div id="result"></div>
+
+<script>
+async function loadHsCodes() {
+  const res = await fetch('/api/hs-codes');
+  const list = await res.json();
+  const sel = document.getElementById('hsCode');
+  sel.innerHTML = list.map(item => `<option value="${item.code}">${item.code} - ${item.description}</option>`).join('');
+}
+
+async function calculate() {
+  const hsCode = document.getElementById('hsCode').value;
+  const fob = parseFloat(document.getElementById('fob').value);
+  const freight = parseFloat(document.getElementById('freight').value);
+  const quantity = parseFloat(document.getElementById('quantity').value);
+  const availableFtas = Array.from(document.getElementById('ftas').selectedOptions).map(o => o.value);
+
+  const res = await fetch('/api/calculate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ hsCode, fob, freight, quantity, availableFtas }),
+  });
+  const data = await res.json();
+
+  document.getElementById('result').textContent = JSON.stringify(data, null, 2);
+}
+
+loadHsCodes();
+</script>
+</body>
+</html>

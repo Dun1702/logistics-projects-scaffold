@@ -1,0 +1,56 @@
+{
+  "8517.12.00": {
+    "description": "Điện thoại di động (smartphone)",
+    "mfn": 0.10,
+    "vjepa": 0.00,
+    "akfta": 0.00,
+    "acfta": 0.00,
+    "evfta": 0.00,
+    "vat_rate": 0.10
+  },
+  "8703.23.99": {
+    "description": "Ô tô con, dung tích 1500-3000cc",
+    "mfn": 0.70,
+    "vjepa": 0.70,
+    "akfta": 0.50,
+    "acfta": 0.50,
+    "evfta": 0.622,
+    "vat_rate": 0.10
+  },
+  "1006.30.90": {
+    "description": "Gạo đã xay xát",
+    "mfn": 0.40,
+    "vjepa": 0.15,
+    "akfta": 0.05,
+    "acfta": 0.00,
+    "evfta": 0.00,
+    "vat_rate": 0.05
+  },
+  "6109.10.00": {
+    "description": "Áo phông, áo may ô cotton",
+    "mfn": 0.20,
+    "vjepa": 0.09,
+    "akfta": 0.00,
+    "acfta": 0.12,
+    "evfta": 0.00,
+    "vat_rate": 0.10
+  },
+  "8471.30.90": {
+    "description": "Máy tính xách tay",
+    "mfn": 0.00,
+    "vjepa": 0.00,
+    "akfta": 0.00,
+    "acfta": 0.00,
+    "evfta": 0.00,
+    "vat_rate": 0.10
+  },
+  "0901.21.00": {
+    "description": "Cà phê rang, chưa khử caffein",
+    "mfn": 0.15,
+    "vjepa": 0.05,
+    "akfta": 0.00,
+    "acfta": 0.05,
+    "evfta": 0.00,
+    "vat_rate": 0.05
+  }
+}

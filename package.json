@@ -1,0 +1,24 @@
+{
+  "name": "logistics-projects-scaffold",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Applied logistics project scaffold: container packing, customs tariff, trade law learning, and yard simulation.",
+  "scripts": {
+    "test": "npm --prefix container-packing-pro test && npm --prefix vn-customs-toolkit test && npm --prefix logistics-law-hub test && npm --prefix yard-simulator test",
+    "test:container": "npm --prefix container-packing-pro test",
+    "test:customs": "npm --prefix vn-customs-toolkit test",
+    "test:law": "npm --prefix logistics-law-hub test",
+    "test:yard": "npm --prefix yard-simulator test"
+  },
+  "keywords": [
+    "logistics",
+    "container-packing",
+    "customs",
+    "trade-law",
+    "yard-simulation"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  }
+}

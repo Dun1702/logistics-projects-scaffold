@@ -1,0 +1,22 @@
+{
+  "vjepa": {
+    "form": "VJ",
+    "agreement": "Hiệp định Đối tác Kinh tế Việt Nam - Nhật Bản",
+    "requirement": "Hàng hóa có xuất xứ thuần túy hoặc đáp ứng tiêu chí chuyển đổi mã số HS (CTC) hoặc hàm lượng giá trị khu vực (RVC) theo quy định VJEPA"
+  },
+  "akfta": {
+    "form": "AK",
+    "agreement": "Hiệp định Thương mại Tự do ASEAN - Hàn Quốc",
+    "requirement": "RVC >= 40% hoặc chuyển đổi mã số hàng hóa (CTSH) theo Phụ lục quy tắc xuất xứ AKFTA"
+  },
+  "acfta": {
+    "form": "E",
+    "agreement": "Hiệp định Thương mại Tự do ASEAN - Trung Quốc",
+    "requirement": "RVC >= 40% theo quy tắc xuất xứ ACFTA, hoặc quy tắc cụ thể mặt hàng (PSR)"
+  },
+  "evfta": {
+    "form": "EUR.1",
+    "agreement": "Hiệp định Thương mại Tự do Việt Nam - EU",
+    "requirement": "Xuất xứ thuần túy hoặc RVC/CTC theo Nghị định thư quy tắc xuất xứ EVFTA; có thể dùng tự chứng nhận REX với lô hàng > 6.000 EUR"
+  }
+}
