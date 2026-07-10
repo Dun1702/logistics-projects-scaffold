@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cold Chain Monitor</title>
+  <link rel="stylesheet" href="../../assets/app.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="../../index.html"><span class="brand-mark">CC</span><span>Cold Chain Monitor</span></a>
+      <div class="top-actions">
+        <button class="btn" onclick="loadSample()">Dữ liệu mẫu</button>
+        <button class="btn primary" onclick="analyze()">Analyze</button>
+      </div>
+    </header>
+
+    <main class="layout workspace">
+      <section class="stack">
+        <div class="panel">
+          <div class="title-row"><h2>Profile</h2><span class="status">2-8C</span></div>
+          <div class="grid two">
+            <label>Min temp C <input id="minTemp" type="number" value="2"></label>
+            <label>Max temp C <input id="maxTemp" type="number" value="8"></label>
+            <label>Max continuous min <input id="maxContinuous" type="number" value="30"></label>
+            <label>Stability budget min <input id="budget" type="number" value="90"></label>
+            <label>Max sensor gap min <input id="maxGap" type="number" value="60"></label>
+            <label>Shipment ID <input id="shipmentId" value="CC-2026-001"></label>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="title-row"><h2>Sensor readings</h2></div>
+          <textarea id="readingsInput"></textarea>
+        </div>
+      </section>
+
+      <section class="stack">
+        <div class="panel">
+          <div class="metric-grid">
+            <div class="metric"><span>Status</span><strong id="statusText">-</strong></div>
+            <div class="metric"><span>Out of range</span><strong id="outMinutes">-</strong></div>
+            <div class="metric"><span>TWA temp</span><strong id="twa">-</strong></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="title-row"><h2>Temperature trace</h2><span id="statusBadge" class="status">ready</span></div>
+          <canvas id="chartCanvas" class="canvas-box" width="900" height="340"></canvas>
+        </div>
+        <div class="panel">
+          <div class="title-row"><h2>Excursions</h2></div>
+          <div id="excursionList" class="list"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+<script>
+const sampleReadings = [
+  { timestamp: '2026-07-10T00:00:00Z', tempC: 5, humidityPct: 55 },
+  { timestamp: '2026-07-10T00:15:00Z', tempC: 6, humidityPct: 54 },
+  { timestamp: '2026-07-10T00:30:00Z', tempC: 10, humidityPct: 52 },
+  { timestamp: '2026-07-10T01:00:00Z', tempC: 9, humidityPct: 50 },
+  { timestamp: '2026-07-10T01:15:00Z', tempC: 6, humidityPct: 48 }
+];
+
+function loadSample() {
+  document.getElementById('readingsInput').value = JSON.stringify(sampleReadings, null, 2);
+  analyze();
+}
+
+function analyze() {
+  const readings = JSON.parse(document.getElementById('readingsInput').value).map(r => ({ ...r, time: new Date(r.timestamp).getTime() })).sort((a, b) => a.time - b.time);
+  const profile = { minTempC: num('minTemp'), maxTempC: num('maxTemp'), maxContinuousMinutesOutOfRange: num('maxContinuous'), stabilityBudgetMinutes: num('budget'), maxGapMinutes: num('maxGap') };
+  const intervals = readings.slice(0, -1).map((reading, index) => ({ reading, start: reading.time, end: readings[index + 1].time, minutes: (readings[index + 1].time - reading.time) / 60000 }));
+  const excursions = detectExcursions(intervals, profile);
+  const gaps = detectGaps(readings, profile.maxGapMinutes);
+  const total = round2(excursions.reduce((sum, e) => sum + e.durationMinutes, 0));
+  const longest = round2(excursions.reduce((max, e) => Math.max(max, e.durationMinutes), 0));
+  const status = gaps.length ? 'review' : longest > profile.maxContinuousMinutesOutOfRange || total > profile.stabilityBudgetMinutes ? 'fail' : total > 0 ? 'warning' : 'pass';
+  const twa = round2(intervals.reduce((sum, i) => sum + i.reading.tempC * i.minutes, 0) / Math.max(1, intervals.reduce((sum, i) => sum + i.minutes, 0)));
+  document.getElementById('statusText').textContent = status;
+  document.getElementById('outMinutes').textContent = `${total} min`;
+  document.getElementById('twa').textContent = `${twa} C`;
+  document.getElementById('statusBadge').textContent = status;
+  document.getElementById('statusBadge').className = `status ${status === 'pass' ? 'ok' : status === 'warning' || status === 'review' ? 'warn' : 'bad'}`;
+  document.getElementById('excursionList').innerHTML = excursions.length ? excursions.map(e => `
+    <div class="list-row"><span>${e.direction} temp<br><span class="muted small">${new Date(e.start).toISOString()} - ${new Date(e.end).toISOString()}</span></span><strong>${e.durationMinutes} min</strong></div>
+  `).join('') : '<div class="notice">No excursions detected.</div>';
+  drawChart(readings, profile);
+}
+
+function detectExcursions(intervals, profile) {
+  const excursions = [];
+  let current = null;
+  intervals.forEach(interval => {
+    const value = interval.reading.tempC;
+    const direction = value < profile.minTempC ? 'low' : value > profile.maxTempC ? 'high' : null;
+    if (!direction) {
+      if (current) excursions.push(current);
+      current = null;
+      return;
+    }
+    if (!current || current.direction !== direction) current = { direction, start: interval.start, end: interval.end, durationMinutes: 0 };
+    current.end = interval.end;
+    current.durationMinutes += interval.minutes;
+  });
+  if (current) excursions.push(current);
+  return excursions.map(e => ({ ...e, durationMinutes: round2(e.durationMinutes) }));
+}
+
+function detectGaps(readings, maxGap) {
+  return readings.slice(0, -1).filter((reading, index) => (readings[index + 1].time - reading.time) / 60000 > maxGap);
+}
+
+function drawChart(readings, profile) {
+  const canvas = document.getElementById('chartCanvas');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const pad = 42;
+  const temps = readings.map(r => r.tempC).concat([profile.minTempC, profile.maxTempC]);
+  const min = Math.min(...temps) - 1;
+  const max = Math.max(...temps) + 1;
+  const start = readings[0].time;
+  const end = readings.at(-1).time;
+  const x = t => pad + (t - start) / Math.max(1, end - start) * (canvas.width - pad * 2);
+  const y = temp => canvas.height - pad - (temp - min) / Math.max(1, max - min) * (canvas.height - pad * 2);
+  ctx.strokeStyle = '#d8dfdc';
+  ctx.lineWidth = 1;
+  [profile.minTempC, profile.maxTempC].forEach(limit => {
+    ctx.beginPath(); ctx.moveTo(pad, y(limit)); ctx.lineTo(canvas.width - pad, y(limit)); ctx.stroke();
+    ctx.fillStyle = '#66736e'; ctx.fillText(`${limit} C`, 10, y(limit) + 4);
+  });
+  ctx.strokeStyle = '#137c63';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  readings.forEach((reading, index) => {
+    const px = x(reading.time);
+    const py = y(reading.tempC);
+    if (index === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  });
+  ctx.stroke();
+  readings.forEach(reading => {
+    ctx.fillStyle = reading.tempC < profile.minTempC || reading.tempC > profile.maxTempC ? '#b42318' : '#137c63';
+    ctx.beginPath(); ctx.arc(x(reading.time), y(reading.tempC), 5, 0, Math.PI * 2); ctx.fill();
+  });
+}
+
+function num(id) { return Number(document.getElementById(id).value); }
+function round2(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
+loadSample();
+</script>
+</body>
+</html>

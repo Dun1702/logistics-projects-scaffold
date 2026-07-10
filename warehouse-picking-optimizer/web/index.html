@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Warehouse Picking Optimizer</title>
+  <link rel="stylesheet" href="../../assets/app.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="../../index.html"><span class="brand-mark">WP</span><span>Warehouse Picking Optimizer</span></a>
+      <div class="top-actions">
+        <button class="btn" onclick="loadSample()">Dữ liệu mẫu</button>
+        <button class="btn primary" onclick="plan()">Plan waves</button>
+      </div>
+    </header>
+
+    <main class="layout workspace">
+      <section class="stack">
+        <div class="panel">
+          <div class="title-row"><h2>Wave settings</h2></div>
+          <div class="grid two">
+            <label>Max orders/wave <input id="maxOrders" type="number" value="2"></label>
+            <label>Pick seconds/line <input id="pickSeconds" type="number" value="18"></label>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="title-row"><h2>Warehouse locations</h2></div>
+          <textarea id="locationsInput"></textarea>
+        </div>
+        <div class="panel">
+          <div class="title-row"><h2>Orders</h2></div>
+          <textarea id="ordersInput"></textarea>
+        </div>
+      </section>
+
+      <section class="stack">
+        <div class="panel">
+          <div class="metric-grid">
+            <div class="metric"><span>Waves</span><strong id="waveCount">-</strong></div>
+            <div class="metric"><span>Distance</span><strong id="distance">-</strong></div>
+            <div class="metric"><span>Labor</span><strong id="labor">-</strong></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="title-row"><h2>Warehouse route</h2><span id="selectedWave" class="status">WAVE-001</span></div>
+          <canvas id="mapCanvas" class="canvas-box" width="900" height="380"></canvas>
+        </div>
+        <div class="panel">
+          <div class="title-row"><h2>Wave list</h2></div>
+          <div id="waveList" class="list"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+<script>
+const sampleLocations = {
+  SKU_A: { x: 4, y: 2, zone: 'A' },
+  SKU_B: { x: 7, y: 2, zone: 'A' },
+  SKU_C: { x: 2, y: 9, zone: 'B' },
+  SKU_D: { x: 8, y: 10, zone: 'C' },
+  SKU_E: { x: 13, y: 5, zone: 'D' }
+};
+const sampleOrders = [
+  { id: 'ORD-1', priority: 2, lines: [{ sku: 'SKU_A', quantity: 2 }, { sku: 'SKU_B', quantity: 1 }] },
+  { id: 'ORD-2', priority: 1, lines: [{ sku: 'SKU_C', quantity: 3 }] },
+  { id: 'ORD-3', priority: 1, lines: [{ sku: 'SKU_A', quantity: 1 }, { sku: 'SKU_D', quantity: 1 }] },
+  { id: 'ORD-4', priority: 0, lines: [{ sku: 'SKU_E', quantity: 4 }] }
+];
+
+let currentPlan = null;
+let currentWaveIndex = 0;
+
+function loadSample() {
+  document.getElementById('locationsInput').value = JSON.stringify(sampleLocations, null, 2);
+  document.getElementById('ordersInput').value = JSON.stringify(sampleOrders, null, 2);
+  plan();
+}
+
+function plan() {
+  const warehouse = { depot: { x: 0, y: 0 }, locations: JSON.parse(document.getElementById('locationsInput').value) };
+  const orders = JSON.parse(document.getElementById('ordersInput').value);
+  currentPlan = planPicking({ warehouse, orders, options: { maxOrdersPerWave: num('maxOrders'), pickSecondsPerLine: num('pickSeconds') } });
+  currentWaveIndex = 0;
+  renderPlan();
+}
+
+function planPicking({ warehouse, orders, options }) {
+  const waves = [];
+  orders.sort((a, b) => (b.priority || 0) - (a.priority || 0)).forEach(order => {
+    let wave = waves.find(candidate => candidate.orders.length < options.maxOrdersPerWave);
+    if (!wave) {
+      wave = { id: `WAVE-${String(waves.length + 1).padStart(3, '0')}`, orders: [] };
+      waves.push(wave);
+    }
+    wave.orders.push(order);
+  });
+  return { waves: waves.map(wave => buildWave(wave, warehouse, options)) };
+}
+
+function buildWave(wave, warehouse, options) {
+  const bySku = new Map();
+  wave.orders.forEach(order => order.lines.forEach(line => {
+    const loc = warehouse.locations[line.sku];
+    if (!loc) return;
+    const current = bySku.get(line.sku) || { sku: line.sku, quantity: 0, ...loc, orders: [] };
+    current.quantity += line.quantity;
+    current.orders.push(order.id);
+    bySku.set(line.sku, current);
+  }));
+  const route = routeStops({ depot: warehouse.depot, stops: [...bySku.values()] });
+  return {
+    waveId: wave.id,
+    orderIds: wave.orders.map(o => o.id),
+    stops: route.stops,
+    routeDistanceMeters: route.distance,
+    estimatedLaborMinutes: round2(route.distance / 55 + route.stops.length * options.pickSecondsPerLine / 60)
+  };
+}
+
+function routeStops({ depot, stops }) {
+  const remaining = stops.map(stop => ({ ...stop }));
+  const ordered = [];
+  let current = depot;
+  let distance = 0;
+  while (remaining.length) {
+    let bestIndex = 0;
+    let bestDistance = Infinity;
+    remaining.forEach((stop, index) => {
+      const d = Math.abs(current.x - stop.x) + Math.abs(current.y - stop.y);
+      if (d < bestDistance) { bestDistance = d; bestIndex = index; }
+    });
+    const [next] = remaining.splice(bestIndex, 1);
+    ordered.push(next);
+    distance += bestDistance;
+    current = next;
+  }
+  distance += Math.abs(current.x - depot.x) + Math.abs(current.y - depot.y);
+  return { stops: ordered, distance };
+}
+
+function renderPlan() {
+  const waves = currentPlan.waves;
+  const selected = waves[currentWaveIndex];
+  document.getElementById('waveCount').textContent = waves.length;
+  document.getElementById('distance').textContent = `${waves.reduce((s, w) => s + w.routeDistanceMeters, 0)} m`;
+  document.getElementById('labor').textContent = `${round2(waves.reduce((s, w) => s + w.estimatedLaborMinutes, 0))} min`;
+  document.getElementById('selectedWave').textContent = selected.waveId;
+  document.getElementById('waveList').innerHTML = waves.map((wave, index) => `
+    <button class="list-row" onclick="currentWaveIndex=${index}; renderPlan()">
+      <span><strong>${wave.waveId}</strong><br><span class="muted small">${wave.orderIds.join(', ')}</span></span>
+      <span class="status">${wave.routeDistanceMeters} m</span>
+    </button>
+  `).join('');
+  drawMap(selected);
+}
+
+function drawMap(wave) {
+  const canvas = document.getElementById('mapCanvas');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const points = [{ x: 0, y: 0, sku: 'Depot' }, ...wave.stops];
+  const maxX = Math.max(...points.map(p => p.x), 1);
+  const maxY = Math.max(...points.map(p => p.y), 1);
+  const map = p => ({ x: 54 + p.x / maxX * 780, y: 320 - p.y / maxY * 260 });
+  ctx.strokeStyle = '#d8dfdc';
+  for (let x = 0; x <= maxX; x += 2) { const p = map({ x, y: 0 }); ctx.beginPath(); ctx.moveTo(p.x, 40); ctx.lineTo(p.x, 330); ctx.stroke(); }
+  for (let y = 0; y <= maxY; y += 2) { const p = map({ x: 0, y }); ctx.beginPath(); ctx.moveTo(40, p.y); ctx.lineTo(840, p.y); ctx.stroke(); }
+  ctx.strokeStyle = '#137c63';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  points.concat(points[0]).forEach((point, index) => {
+    const p = map(point);
+    if (index === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+  });
+  ctx.stroke();
+  points.forEach((point, index) => {
+    const p = map(point);
+    ctx.fillStyle = index === 0 ? '#17201d' : '#a65f00';
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#17201d';
+    ctx.font = '13px system-ui';
+    ctx.fillText(point.sku, p.x + 10, p.y - 10);
+  });
+}
+
+function num(id) { return Number(document.getElementById(id).value); }
+function round2(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
+loadSample();
+</script>
+</body>
+</html>

@@ -12,6 +12,7 @@
   }
   #hud b { color: #d4ffde; }
   canvas { display: block; }
+  #yard-fallback { width: 100vw; height: 100vh; }
 </style>
 </head>
 <body>
@@ -21,9 +22,9 @@
   Reshuffles: <span id="stat-reshuffle">-</span><br>
   <span style="color:#4a6b56">Kéo chuột để xoay · Cuộn để zoom</span>
 </div>
+<canvas id="yard-fallback"></canvas>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/controls/OrbitControls.js"></script>
 <script>
 // ---- Dữ liệu mẫu: kết quả từ planYardSlotting() ----
 const yardSpec = { blocks: 2, baysPerBlock: 3, rowsPerBay: 2, tiersPerStack: 3 };
@@ -34,6 +35,18 @@ const placements = [
   { containerId: 'C2', block: 0, bay: 1, row: 1, tier: 0 },
   { containerId: 'C4', block: 0, bay: 2, row: 0, tier: 0 },
 ];
+
+document.getElementById('stat-count').textContent = placements.length;
+document.getElementById('stat-reshuffle').textContent = '0';
+
+if (window.THREE) {
+  runThreeScene();
+} else {
+  drawFallbackScene();
+}
+
+function runThreeScene() {
+document.getElementById('yard-fallback').style.display = 'none';
 
 // ---- Setup scene ----
 const scene = new THREE.Scene();
@@ -47,9 +60,39 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
 document.body.appendChild(renderer.domElement);
 
-const controls = new THREE.OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
-controls.target.set(6, 1, 3);
+let yaw = 0.72;
+let pitch = 0.52;
+let distance = 30;
+let dragging = false;
+let lastMouse = { x: 0, y: 0 };
+const target = new THREE.Vector3(6, 1, 3);
+
+function updateCamera() {
+  const x = target.x + Math.cos(yaw) * Math.cos(pitch) * distance;
+  const y = target.y + Math.sin(pitch) * distance;
+  const z = target.z + Math.sin(yaw) * Math.cos(pitch) * distance;
+  camera.position.set(x, y, z);
+  camera.lookAt(target);
+}
+
+renderer.domElement.addEventListener('pointerdown', event => {
+  dragging = true;
+  lastMouse = { x: event.clientX, y: event.clientY };
+});
+renderer.domElement.addEventListener('pointerup', () => { dragging = false; });
+renderer.domElement.addEventListener('pointerleave', () => { dragging = false; });
+renderer.domElement.addEventListener('pointermove', event => {
+  if (!dragging) return;
+  yaw -= (event.clientX - lastMouse.x) * 0.008;
+  pitch = Math.max(0.18, Math.min(1.12, pitch - (event.clientY - lastMouse.y) * 0.006));
+  lastMouse = { x: event.clientX, y: event.clientY };
+  updateCamera();
+});
+renderer.domElement.addEventListener('wheel', event => {
+  distance = Math.max(14, Math.min(70, distance + event.deltaY * 0.02));
+  updateCamera();
+});
+updateCamera();
 
 // Ánh sáng
 scene.add(new THREE.AmbientLight(0x445544, 0.8));
@@ -94,9 +137,6 @@ placements.forEach(p => {
   scene.add(mesh);
 });
 
-document.getElementById('stat-count').textContent = placements.length;
-document.getElementById('stat-reshuffle').textContent = '0';
-
 window.addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
@@ -105,10 +145,60 @@ window.addEventListener('resize', () => {
 
 function animate() {
   requestAnimationFrame(animate);
-  controls.update();
+  if (!dragging) {
+    yaw += 0.0012;
+    updateCamera();
+  }
   renderer.render(scene, camera);
 }
 animate();
+}
+
+function drawFallbackScene() {
+  const canvas = document.getElementById('yard-fallback');
+  const ctx = canvas.getContext('2d');
+
+  function resize() {
+    canvas.width = innerWidth * devicePixelRatio;
+    canvas.height = innerHeight * devicePixelRatio;
+    canvas.style.width = `${innerWidth}px`;
+    canvas.style.height = `${innerHeight}px`;
+    ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+    draw();
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, innerWidth, innerHeight);
+    ctx.fillStyle = '#0b0d10';
+    ctx.fillRect(0, 0, innerWidth, innerHeight);
+    ctx.strokeStyle = '#1e3a2a';
+    for (let x = 0; x < innerWidth; x += 28) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, innerHeight);
+      ctx.stroke();
+    }
+    for (let y = 0; y < innerHeight; y += 28) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(innerWidth, y);
+      ctx.stroke();
+    }
+    placements.forEach((p, index) => {
+      const x = 180 + p.block * 260 + p.bay * 56;
+      const y = 160 + p.row * 92 - p.tier * 18;
+      ctx.fillStyle = `hsl(${[18, 178, 44, 265, 104][index % 5]} 76% 58%)`;
+      ctx.fillRect(x, y, 92, 34);
+      ctx.strokeStyle = '#07100d';
+      ctx.strokeRect(x, y, 92, 34);
+      ctx.fillStyle = '#07100d';
+      ctx.fillText(p.containerId, x + 8, y + 22);
+    });
+  }
+
+  addEventListener('resize', resize);
+  resize();
+}
 </script>
 </body>
 </html>

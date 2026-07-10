@@ -2,20 +2,29 @@
   "name": "logistics-projects-scaffold",
   "version": "0.1.0",
   "private": true,
-  "description": "Applied logistics project scaffold: container packing, customs tariff, trade law learning, and yard simulation.",
+  "description": "Applied logistics project scaffold: container packing, customs tariff, trade law learning, yard simulation, freight audit, warehouse picking, cold-chain monitoring, and demand planning.",
   "scripts": {
-    "test": "npm --prefix container-packing-pro test && npm --prefix vn-customs-toolkit test && npm --prefix logistics-law-hub test && npm --prefix yard-simulator test",
+    "serve": "node scripts/static-server.js",
+    "test": "npm --prefix container-packing-pro test && npm --prefix vn-customs-toolkit test && npm --prefix logistics-law-hub test && npm --prefix yard-simulator test && npm --prefix freight-cost-auditor test && npm --prefix warehouse-picking-optimizer test && npm --prefix cold-chain-monitor test && npm --prefix demand-planning-lite test",
     "test:container": "npm --prefix container-packing-pro test",
     "test:customs": "npm --prefix vn-customs-toolkit test",
     "test:law": "npm --prefix logistics-law-hub test",
-    "test:yard": "npm --prefix yard-simulator test"
+    "test:yard": "npm --prefix yard-simulator test",
+    "test:freight": "npm --prefix freight-cost-auditor test",
+    "test:picking": "npm --prefix warehouse-picking-optimizer test",
+    "test:cold-chain": "npm --prefix cold-chain-monitor test",
+    "test:demand": "npm --prefix demand-planning-lite test"
   },
   "keywords": [
     "logistics",
     "container-packing",
     "customs",
     "trade-law",
-    "yard-simulation"
+    "yard-simulation",
+    "freight-audit",
+    "warehouse-picking",
+    "cold-chain",
+    "demand-planning"
   ],
   "license": "MIT",
   "engines": {

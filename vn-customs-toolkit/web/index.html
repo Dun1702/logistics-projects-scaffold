@@ -1,71 +1,151 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-<meta charset="UTF-8">
-<title>VN Customs & Tariff Calculator</title>
-<style>
-  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 40px auto; padding: 0 20px; color: #1a1a1a; }
-  h1 { font-size: 1.4rem; }
-  label { display: block; margin-top: 12px; font-size: 0.9rem; font-weight: 600; }
-  input, select { width: 100%; padding: 8px; margin-top: 4px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 6px; }
-  button { margin-top: 20px; padding: 10px 20px; background: #1a1a1a; color: white; border: none; border-radius: 6px; cursor: pointer; }
-  #result { margin-top: 24px; padding: 16px; background: #f5f5f5; border-radius: 8px; white-space: pre-wrap; font-size: 0.9rem; }
-  .fta-row { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VN Customs Toolkit</title>
+  <link rel="stylesheet" href="../../assets/app.css">
 </head>
 <body>
-  <h1>🇻🇳 Công cụ tính thuế nhập khẩu</h1>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="../../index.html"><span class="brand-mark">VN</span><span>VN Customs Toolkit</span></a>
+      <div class="top-actions">
+        <button class="btn" onclick="loadExample()">Dữ liệu mẫu</button>
+        <button class="btn primary" onclick="calculate()">Tính thuế</button>
+      </div>
+    </header>
 
-  <label>Mã HS</label>
-  <select id="hsCode"></select>
+    <main class="layout workspace">
+      <section class="stack">
+        <div class="panel">
+          <div class="title-row"><h2>Shipment</h2><span class="status">demo tariff</span></div>
+          <div class="grid two">
+            <label>Mã HS <select id="hsCode"></select></label>
+            <label>Số lượng <input id="quantity" type="number" value="1"></label>
+            <label>FOB (USD) <input id="fob" type="number" value="10000"></label>
+            <label>Freight (USD) <input id="freight" type="number" value="500"></label>
+            <label>Insurance (USD) <input id="insurance" type="number" placeholder="auto estimate"></label>
+            <label>Thuế TTĐB (%) <input id="sct" type="number" value="0" step="0.1"></label>
+          </div>
+        </div>
 
-  <label>Trị giá FOB (USD)</label>
-  <input id="fob" type="number" value="10000">
+        <div class="panel">
+          <div class="title-row"><h2>FTA đủ điều kiện</h2></div>
+          <div class="grid two">
+            <label><input type="checkbox" class="fta" value="vjepa"> VJEPA</label>
+            <label><input type="checkbox" class="fta" value="akfta" checked> AKFTA</label>
+            <label><input type="checkbox" class="fta" value="acfta"> ACFTA</label>
+            <label><input type="checkbox" class="fta" value="evfta" checked> EVFTA</label>
+          </div>
+        </div>
+      </section>
 
-  <label>Cước vận chuyển - Freight (USD)</label>
-  <input id="freight" type="number" value="500">
+      <section class="stack">
+        <div class="panel">
+          <div class="metric-grid">
+            <div class="metric"><span>CIF</span><strong id="cif">-</strong></div>
+            <div class="metric"><span>Total tax</span><strong id="totalTax">-</strong></div>
+            <div class="metric"><span>Landed cost</span><strong id="landedCost">-</strong></div>
+          </div>
+        </div>
 
-  <label>Số lượng</label>
-  <input id="quantity" type="number" value="1">
+        <div class="panel">
+          <div class="title-row"><h2>Kết quả</h2><span id="scheme" class="status">ready</span></div>
+          <div class="table-wrap">
+            <table>
+              <tbody id="resultRows"></tbody>
+            </table>
+          </div>
+        </div>
 
-  <label>FTA đủ điều kiện áp dụng (giữ Ctrl để chọn nhiều)</label>
-  <select id="ftas" multiple>
-    <option value="vjepa">VJEPA (Việt Nam - Nhật Bản)</option>
-    <option value="akfta">AKFTA (ASEAN - Hàn Quốc)</option>
-    <option value="acfta">ACFTA (ASEAN - Trung Quốc)</option>
-    <option value="evfta">EVFTA (Việt Nam - EU)</option>
-  </select>
-
-  <button onclick="calculate()">Tính thuế</button>
-
-  <div id="result"></div>
-
+        <div class="panel">
+          <div class="title-row"><h2>C/O đề xuất</h2></div>
+          <div id="coResult" class="notice"></div>
+        </div>
+      </section>
+    </main>
+  </div>
 <script>
-async function loadHsCodes() {
-  const res = await fetch('/api/hs-codes');
-  const list = await res.json();
+const tariffData = {
+  '8517.12.00': { description: 'Điện thoại di động (smartphone)', mfn: 0.10, vjepa: 0, akfta: 0, acfta: 0, evfta: 0, vat_rate: 0.10 },
+  '8703.23.99': { description: 'Ô tô con, dung tích 1500-3000cc', mfn: 0.70, vjepa: 0.70, akfta: 0.50, acfta: 0.50, evfta: 0.622, vat_rate: 0.10 },
+  '1006.30.90': { description: 'Gạo đã xay xát', mfn: 0.40, vjepa: 0.15, akfta: 0.05, acfta: 0, evfta: 0, vat_rate: 0.05 },
+  '6109.10.00': { description: 'Áo phông, áo may ô cotton', mfn: 0.20, vjepa: 0.09, akfta: 0, acfta: 0.12, evfta: 0, vat_rate: 0.10 },
+  '8471.30.90': { description: 'Máy tính xách tay', mfn: 0, vjepa: 0, akfta: 0, acfta: 0, evfta: 0, vat_rate: 0.10 },
+  '0901.21.00': { description: 'Cà phê rang, chưa khử caffein', mfn: 0.15, vjepa: 0.05, akfta: 0, acfta: 0.05, evfta: 0, vat_rate: 0.05 }
+};
+const coForms = {
+  vjepa: { form: 'VJ', agreement: 'Việt Nam - Nhật Bản' },
+  akfta: { form: 'AK', agreement: 'ASEAN - Hàn Quốc' },
+  acfta: { form: 'E', agreement: 'ASEAN - Trung Quốc' },
+  evfta: { form: 'EUR.1', agreement: 'Việt Nam - EU' }
+};
+
+function loadHsCodes() {
   const sel = document.getElementById('hsCode');
-  sel.innerHTML = list.map(item => `<option value="${item.code}">${item.code} - ${item.description}</option>`).join('');
+  sel.innerHTML = Object.entries(tariffData).map(([code, item]) => `<option value="${code}">${code} - ${item.description}</option>`).join('');
 }
 
-async function calculate() {
+function loadExample() {
+  document.getElementById('hsCode').value = '6109.10.00';
+  document.getElementById('fob').value = 18000;
+  document.getElementById('freight').value = 850;
+  document.getElementById('quantity').value = 1200;
+  document.getElementById('insurance').value = '';
+  document.getElementById('sct').value = 0;
+  document.querySelectorAll('.fta').forEach(box => box.checked = ['akfta', 'evfta'].includes(box.value));
+  calculate();
+}
+
+function calculate() {
   const hsCode = document.getElementById('hsCode').value;
-  const fob = parseFloat(document.getElementById('fob').value);
-  const freight = parseFloat(document.getElementById('freight').value);
-  const quantity = parseFloat(document.getElementById('quantity').value);
-  const availableFtas = Array.from(document.getElementById('ftas').selectedOptions).map(o => o.value);
+  const entry = tariffData[hsCode];
+  const fob = Number(document.getElementById('fob').value);
+  const freight = Number(document.getElementById('freight').value);
+  const quantity = Number(document.getElementById('quantity').value);
+  const explicitInsurance = document.getElementById('insurance').value;
+  const insurance = explicitInsurance === '' ? estimateInsurance(fob, freight) : Number(explicitInsurance);
+  const specialConsumptionTaxRate = Number(document.getElementById('sct').value) / 100;
+  const availableFtas = [...document.querySelectorAll('.fta:checked')].map(input => input.value);
+  const best = findBestRate(entry, availableFtas);
+  const cif = fob + freight + insurance;
+  const importDuty = cif * best.rate;
+  const sct = (cif + importDuty) * specialConsumptionTaxRate;
+  const vat = (cif + importDuty + sct) * entry.vat_rate;
+  const totalTax = importDuty + sct + vat;
+  const landed = cif + totalTax;
 
-  const res = await fetch('/api/calculate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ hsCode, fob, freight, quantity, availableFtas }),
-  });
-  const data = await res.json();
+  document.getElementById('cif').textContent = money(cif);
+  document.getElementById('totalTax').textContent = money(totalTax);
+  document.getElementById('landedCost').textContent = money(landed);
+  document.getElementById('scheme').textContent = best.scheme.toUpperCase();
+  document.getElementById('scheme').className = `status ${best.scheme === 'mfn' ? 'warn' : 'ok'}`;
+  document.getElementById('resultRows').innerHTML = [
+    ['Mặt hàng', entry.description],
+    ['Insurance used', money(insurance)],
+    ['Duty rate', `${round2(best.rate * 100)}%`],
+    ['Import duty', money(importDuty)],
+    ['VAT rate', `${round2(entry.vat_rate * 100)}%`],
+    ['VAT', money(vat)],
+    ['Savings vs MFN', money((entry.mfn - best.rate) * cif)],
+    ['Unit landed cost', money(landed / quantity)]
+  ].map(([key, value]) => `<tr><th>${key}</th><td>${value}</td></tr>`).join('');
 
-  document.getElementById('result').textContent = JSON.stringify(data, null, 2);
+  const form = coForms[best.scheme];
+  document.getElementById('coResult').innerHTML = form
+    ? `<strong>Form ${form.form}</strong><br>${form.agreement}<br>Duty rate ${round2(best.rate * 100)}%.`
+    : 'Không có FTA nào tốt hơn MFN trong dữ liệu demo.';
 }
 
+function estimateInsurance(fob, freight, rate = 0.002) { return ((fob + freight) * rate) / (1 - rate); }
+function findBestRate(entry, availableFtas) {
+  return availableFtas.reduce((best, fta) => entry[fta] !== undefined && entry[fta] < best.rate ? { scheme: fta, rate: entry[fta] } : best, { scheme: 'mfn', rate: entry.mfn });
+}
+function money(n) { return `$${round2(n).toLocaleString()}`; }
+function round2(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
 loadHsCodes();
+loadExample();
 </script>
 </body>
 </html>

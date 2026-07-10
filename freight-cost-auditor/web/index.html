@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Freight Cost Auditor</title>
+  <link rel="stylesheet" href="../../assets/app.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="../../index.html"><span class="brand-mark">FA</span><span>Freight Cost Auditor</span></a>
+      <div class="top-actions">
+        <button class="btn" onclick="loadSample()">Dữ liệu mẫu</button>
+        <button class="btn primary" onclick="audit()">Audit</button>
+      </div>
+    </header>
+
+    <main class="layout workspace">
+      <section class="stack">
+        <div class="panel">
+          <div class="title-row"><h2>Rate card</h2><span class="status">USD</span></div>
+          <div class="grid two">
+            <label>Min charge <input id="minCharge" type="number"></label>
+            <label>Rate/kg <input id="ratePerKg" type="number" step="0.01"></label>
+            <label>Fuel % <input id="fuelPct" type="number" step="0.1"></label>
+            <label>Tax % <input id="taxPct" type="number" step="0.1"></label>
+            <label>Liftgate fee <input id="liftgate" type="number"></label>
+            <label>Residential fee <input id="residential" type="number"></label>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="title-row"><h2>Shipment invoice</h2></div>
+          <div class="grid two">
+            <label>Shipment ID <input id="shipmentId"></label>
+            <label>Billable kg <input id="billableWeight" type="number"></label>
+            <label>Invoice base <input id="invoiceBase" type="number"></label>
+            <label>Invoice fuel <input id="invoiceFuel" type="number"></label>
+            <label>Invoice liftgate <input id="invoiceLiftgate" type="number"></label>
+            <label>Invoice tax <input id="invoiceTax" type="number"></label>
+          </div>
+        </div>
+      </section>
+
+      <section class="stack">
+        <div class="panel">
+          <div class="metric-grid">
+            <div class="metric"><span>Expected</span><strong id="expectedTotal">-</strong></div>
+            <div class="metric"><span>Actual</span><strong id="actualTotal">-</strong></div>
+            <div class="metric"><span>Variance</span><strong id="variance">-</strong></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="title-row"><h2>Audit result</h2><span id="status" class="status">ready</span></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Charge</th><th>Expected</th><th>Actual</th><th>Variance</th></tr></thead>
+              <tbody id="issueRows"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="title-row"><h2>Charge mix</h2></div>
+          <canvas id="barCanvas" class="canvas-box" width="900" height="280"></canvas>
+        </div>
+      </section>
+    </main>
+  </div>
+
+<script>
+function loadSample() {
+  setValues({
+    minCharge: 120,
+    ratePerKg: 0.42,
+    fuelPct: 12,
+    taxPct: 8,
+    liftgate: 35,
+    residential: 18,
+    shipmentId: 'SHP-1001',
+    billableWeight: 400,
+    invoiceBase: 168,
+    invoiceFuel: 20.16,
+    invoiceLiftgate: 45,
+    invoiceTax: 17.85
+  });
+  audit();
+}
+
+function audit() {
+  const base = Math.max(num('minCharge'), num('billableWeight') * num('ratePerKg'));
+  const fuel = base * num('fuelPct') / 100;
+  const liftgate = num('liftgate');
+  const tax = (base + fuel + liftgate) * num('taxPct') / 100;
+  const expected = [
+    { key: 'base', expected: base, actual: num('invoiceBase') },
+    { key: 'fuel', expected: fuel, actual: num('invoiceFuel') },
+    { key: 'liftgate', expected: liftgate, actual: num('invoiceLiftgate') },
+    { key: 'tax', expected: tax, actual: num('invoiceTax') }
+  ].map(line => ({ ...line, expected: round2(line.expected), actual: round2(line.actual), variance: round2(line.actual - line.expected) }));
+  const expectedTotal = round2(expected.reduce((sum, line) => sum + line.expected, 0));
+  const actualTotal = round2(expected.reduce((sum, line) => sum + line.actual, 0));
+  const variance = round2(actualTotal - expectedTotal);
+
+  document.getElementById('expectedTotal').textContent = money(expectedTotal);
+  document.getElementById('actualTotal').textContent = money(actualTotal);
+  document.getElementById('variance').textContent = money(variance);
+  document.getElementById('status').textContent = Math.abs(variance) <= 0.01 ? 'matched' : variance > 0 ? 'overbilled' : 'underbilled';
+  document.getElementById('status').className = `status ${Math.abs(variance) <= 0.01 ? 'ok' : 'bad'}`;
+  document.getElementById('issueRows').innerHTML = expected.map(line => `
+    <tr>
+      <td>${line.key}</td>
+      <td>${money(line.expected)}</td>
+      <td>${money(line.actual)}</td>
+      <td><span class="status ${Math.abs(line.variance) <= 0.01 ? 'ok' : 'bad'}">${money(line.variance)}</span></td>
+    </tr>
+  `).join('');
+  drawBars(expected);
+}
+
+function drawBars(lines) {
+  const canvas = document.getElementById('barCanvas');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const max = Math.max(...lines.flatMap(line => [line.expected, line.actual]), 1);
+  const colors = ['#137c63', '#a65f00'];
+  lines.forEach((line, index) => {
+    const y = 34 + index * 54;
+    ctx.fillStyle = '#17201d';
+    ctx.font = '14px system-ui';
+    ctx.fillText(line.key, 24, y + 18);
+    [line.expected, line.actual].forEach((value, barIndex) => {
+      ctx.fillStyle = colors[barIndex];
+      ctx.fillRect(130, y + barIndex * 20, value / max * 620, 14);
+      ctx.fillStyle = '#66736e';
+      ctx.fillText(money(value), 760, y + 12 + barIndex * 20);
+    });
+  });
+}
+
+function setValues(values) { Object.entries(values).forEach(([id, value]) => document.getElementById(id).value = value); }
+function num(id) { return Number(document.getElementById(id).value); }
+function money(n) { return `$${round2(n).toLocaleString()}`; }
+function round2(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
+
+loadSample();
+</script>
+</body>
+</html>
